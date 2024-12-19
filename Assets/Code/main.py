@@ -7,29 +7,44 @@ import os
 from os import listdir
 from os.path import isfile, join
 
+
+# Local Imports
+import player as playerclass
+
 ## Global variables
 
-GLOBAnimationDelay = 4
 
+    # None yet ;)
 
 
 ## Initial Setup
 
 pygame.init()
 
-pygame.display.set_caption("Platformer")
-DisplayHeight, DisplayWidth = 800, 720
-FPS = 60
-PlayerSpeed = 10
+os.environ['SDL_VIDEO_CENTERED'] = '1'
+info = pygame.display.Info()
+DisplayHeight, DisplayWidth = 1000, 1000
 
-Display = pygame.display.set_mode((DisplayWidth, DisplayHeight), pygame.RESIZABLE)
+
+
+pygame.display.set_caption("Platformer")
+FPS = 60 # Set the max fps
+PlayerSpeed = 10 # Controls player speed
+
+
+# This sets the parameters for the display such as height width etc.
+
+Display = pygame.display.set_mode((DisplayHeight - 10, DisplayWidth - 10), pygame.RESIZABLE, vsync = 1) # vsync = 1 means vsync is on
+
+
+
+# This flip and loadSpriteSheets deal with making the sprites ready
 
 def flip(sprites):
     return [pygame.transform.flip(sprite, True, False) for sprite in sprites]
 
 def loadSpriteSheets(dir1, dir2, width, height, direction=False):
     path = join("Assets", "Images", dir1, dir2)
-    print(path)
     images = [f for f in listdir(path) if isfile(join(path, f))]
 
     all_sprites = {}
@@ -49,10 +64,11 @@ def loadSpriteSheets(dir1, dir2, width, height, direction=False):
             all_sprites[image.replace(".png", "") + "_left"] = flip(sprites)
         else:
             all_sprites[image.replace(".png", "")] = sprites
-            print(f"Loaded sprites for {image.replace('.png', '')}: {sprites}")  # Add this line
 
 
     return all_sprites
+
+# This function gets the Terrain sprite and blits it onto the display
 
 def getBlock(size):
     path = join("Assets", "Images", "Terrain.png")
@@ -62,107 +78,19 @@ def getBlock(size):
     surface.blit(image, (0, 0), rect)
     return pygame.transform.scale2x(surface)
 
-class Player(pygame.sprite.Sprite):   
-    Color = (255, 0, 0)
-    Gravity = 1
-    Sprites = loadSpriteSheets("", "MaskDude", 32, 32, True)
-    AnimationDelay = 3
 
-    def __init__(self, x, y, width, height):
-        super().__init__()
-        self.rect = pygame.Rect(x, y, width, height)
-        self.x_speed = 0
-        self.y_speed = 0
-        self.mask = None
-        self.direction = "left"
-        self.animation_count = 0
-        self.fall_count = 0
-        self.jump_count = 0
-        self.hit = False
-        self.hit_count = 0
-        
-    def jump(self):
-        self.y_speed = -self.Gravity * 8
-        self.animation_count = 0
-        self.jump_count += 1
-        
-        if self.jump_count == 1:
-            self.fall_count = 0
+
+# This is the class for the FPS counter in the top left
+class framespersecond:
     
-    def Move(self, dx , dy):
-        self.rect.x += dx
-        self.rect.y += dy
-
-    def makeHit(self):
-        self.hit = True
-        self.hit_count = 0
-
-    def moveLeft(self, speed):
-        self.x_speed = -speed
-
-        if self.direction != "left":
-            self.direction = "left"
-            self.animation_count = 0
+    def __init__(self):
+        self.clock = pygame.time.Clock()
+        self.font = pygame.font.SysFont("Verdana", 20)
+        self.text= self.font.render(str(round(self.clock.get_fps())), True, ('black'))
     
-    def moveRight(self, speed):
-        self.x_speed = speed
-
-        if self.direction != "right":
-            self.direction = "right"
-            self.animation_count = 0
-
-    def loop(self, fps):
-        self.y_speed += min(1, (self.fall_count / fps) * self.Gravity) # This controls Gravity
-        self.Move(self.x_speed, self.y_speed)
-
-        if self.hit:
-            self.hit_count += 1
-        if self.hit_count > fps * 2:
-            self.hit = False
-            self.hit_count = 0
-
-        self.fall_count += 1
-    
-        self.updateSprite()
-    
-    def landed(self):
-        self.fall_count = 0
-        self.y_speed = 0
-        self.jump_count = 0
-
-    def hitHead(self):
-        self.count = 0
-        self.y_speed*= -1
-
-    def updateSprite(self):
-        sprite_sheet = "idle"
-
-        if self.hit:
-            sprite_sheet = "hit"
-        if self.y_speed < 0:
-            if self.jump_count == 1:
-                sprite_sheet = "jump"
-            elif self.jump_count == 2:
-                sprite_sheet = "double_jump"
-        elif self.y_speed > self.Gravity * 2:
-            sprite_sheet = "fall"
-        elif self.x_speed != 0:
-            sprite_sheet = "run"
-
-        sprite_sheet_name = sprite_sheet + "_" + self.direction
-        sprites = self.Sprites[sprite_sheet_name]
-        sprite_index = self.animation_count // self.AnimationDelay % len(sprites)
-        self.sprite = sprites[sprite_index]
-        self.animation_count += 1
-        self.update()
-
-    def update(self):
-        self.rect = self.sprite.get_rect(topleft=(self.rect.x, self.rect.y))
-        self.mask = pygame.mask.from_surface(self.sprite)
-
-    def draw(self, Display, offset_x):
-        Display.blit(self.sprite, (self.rect.x - offset_x, self.rect.y))
-
+    def renderer(self, Display):
+        self.text = self.font.render(str(round(self.clock.get_fps())), True, ('black'))
+        Display.blit(self.text, (0, 0))
 
 class Object(pygame.sprite.Sprite):
     def __init__(self, x, y, width, height, name=None):
@@ -227,7 +155,10 @@ def GetBackground(name):
     
     return tiles, image
 
-def draw(Display, background, BGImage, player, objects, offset_x):
+
+## The main draw function
+
+def draw(Display, background, BGImage, player, objects, offset_x, fps):
     for tile in background:
         Display.blit(BGImage, tile)
     
@@ -235,8 +166,18 @@ def draw(Display, background, BGImage, player, objects, offset_x):
         obj.draw(Display, offset_x)
 
     player.draw(Display, offset_x)
+
+    fps.renderer(Display)
+
     
     pygame.display.update()
+
+
+# TODO    
+
+def handleResize(Display):
+    
+    ...
 
 def handleVerticalCollision(player, objects, dy):
     collided_objects = []
@@ -295,6 +236,7 @@ def handleMove(player, objects):
 
 
 
+## The main loop
 
 def main(Display):
     clock = pygame.time.Clock() # Make a clock to regulate fps and more
@@ -302,7 +244,7 @@ def main(Display):
 
     block_size = 96
 
-    player = Player(100, 100, 50, 50)
+    player = playerclass.Player(100, 100, 50, 50)
 
     fire = Fire(100, DisplayHeight - block_size - 64, 16, 32)
     fire.on()
@@ -315,11 +257,13 @@ def main(Display):
     
     offset_x = 0
     scroll_area_width = 200
+    fps = framespersecond()
 
     run = True # The main game run variable
 
     while run:
-        clock.tick(FPS) # Set FPS
+        dt = clock.tick(FPS) / 1000 
+        fps.clock.tick(FPS)
 
         # Main Event loop
 
@@ -330,13 +274,16 @@ def main(Display):
                 run = False
                 break
                 
-            elif event.type == pygame.VIDEORESIZE:
-                Display = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
+            if event.type == pygame.VIDEORESIZE:
+                Display = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE or pygame.SCALED or pygame.OPENGL)
+
+
                 break
             
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE and player.jump_count < 2:
                     player.jump()
+        
 
         player.loop(FPS)
 
@@ -344,7 +291,8 @@ def main(Display):
 
         handleMove(player, objects)
         
-        draw(Display, Background, BGImage, player, objects, offset_x)
+        
+        draw(Display, Background, BGImage, player, objects, offset_x, fps)
 
         if (player.rect.right - offset_x >= DisplayWidth - scroll_area_width and player.x_speed > 0) or (
             (player.rect.left - offset_x <= scroll_area_width) and player.x_speed < 0):
@@ -356,5 +304,6 @@ def main(Display):
 
 
 
+# This right here is to ensure the main loop is not executed if this code is ever implemented into other code
 if __name__ == "__main__":
     main(Display)
